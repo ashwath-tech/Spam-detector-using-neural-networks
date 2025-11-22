@@ -1,0 +1,219 @@
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Qf8FkN9ZEBjm",
+        "outputId": "8972b64b-e1d9-4a52-bb58-2a69e397258c"
+      },
+      "outputs": [],
+      "source": [
+        "import tensorflow as tf\n",
+        "from sklearn.feature_extraction.text import CountVectorizer\n",
+        "from tensorflow.keras import Sequential\n",
+        "from tensorflow.keras.layers import Dense\n",
+        "from tensorflow import keras\n",
+        "from keras import regularizers\n",
+        "import numpy as np\n",
+        "import spacy\n",
+        "import os\n",
+        "import pandas as pd\n",
+        "import kagglehub\n",
+        "\n",
+        "path = kagglehub.dataset_download(\"uciml/sms-spam-collection-dataset\")\n",
+        "files_in_dataset = os.listdir(path)\n",
+        "dataset_file_path = os.path.join(path, \"spam.csv\")\n",
+        "df = np.array(pd.read_csv(dataset_file_path, encoding='latin-1'))\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 14,
+      "metadata": {
+        "id": "YfdlWzR1G_Rx"
+      },
+      "outputs": [],
+      "source": [
+        "nlp = spacy.load(\"en_core_web_sm\")\n",
+        "for i in range(df.shape[0]):\n",
+        "  doc = nlp(df[i,1])\n",
+        "  df[i,1] = \" \".join([token.lemma_ for token in doc])"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 15,
+      "metadata": {
+        "id": "DL03ZlgAQfsz"
+      },
+      "outputs": [],
+      "source": [
+        "df[:,0][df[:,0] == \"ham\"] = 0\n",
+        "df[:,0][df[:,0] == \"spam\"] = 1"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 16,
+      "metadata": {
+        "id": "uqG6GQpvEBcV"
+      },
+      "outputs": [],
+      "source": [
+        "from sklearn.model_selection import train_test_split\n",
+        "x_train,  x_test, y_train, y_test = train_test_split(df[:,1], df[:,0], test_size = 0.2, random_state = 30)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 17,
+      "metadata": {
+        "id": "CxqlSjR3NTID"
+      },
+      "outputs": [],
+      "source": [
+        "vectorizer = CountVectorizer()\n",
+        "x_train = vectorizer.fit_transform(x_train)\n",
+        "x_test = vectorizer.transform(x_test)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 18,
+      "metadata": {
+        "id": "Wp3tLiwWEBq4"
+      },
+      "outputs": [],
+      "source": [
+        "model = Sequential([\n",
+        "    tf.keras.Input(shape=(6843,)),\n",
+        "    Dense(units = 50, activation = \"relu\",  kernel_regularizer=tf.keras.regularizers.l2(0.01)),\n",
+        "    Dense(units = 10, activation = \"relu\",  kernel_regularizer=tf.keras.regularizers.l2(0.01)),\n",
+        "    Dense(units = 1, activation = \"sigmoid\"),\n",
+        "  ]\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 225
+        },
+        "id": "hh6oOwQrVMAL",
+        "outputId": "7643eba1-1128-4f09-dae7-d67069c9cccd"
+      },
+      "outputs": [],
+      "source": [
+        "model.summary()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 20,
+      "metadata": {
+        "id": "eXMLcOrfMCvP"
+      },
+      "outputs": [],
+      "source": [
+        "model.compile(\n",
+        "    loss = tf.keras.losses.BinaryCrossentropy(),\n",
+        "    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.01)\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "0ku4QpRaMf93",
+        "outputId": "8912bc71-4653-49fb-c157-8cce6deacbaf"
+      },
+      "outputs": [],
+      "source": [
+        "x_train.sort_indices()\n",
+        "model.fit(\n",
+        "    x_train, y_train.astype(int), epochs = 25\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "BlAd-_UDoMuB",
+        "outputId": "040f5342-7268-41c8-e089-fb7dd08aa756"
+      },
+      "outputs": [],
+      "source": [
+        "y_pred = model.predict(x_test)\n",
+        "y_pred[y_pred > 0.5] = 1\n",
+        "y_pred[y_pred <= 0.5] = 0"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "KAE-aFrVoMrP",
+        "outputId": "5f90fb15-f855-48c4-9970-2ef83d7be111"
+      },
+      "outputs": [],
+      "source": [
+        "from sklearn.metrics import classification_report\n",
+        "print(classification_report(y_test.astype(int), y_pred.astype(int)))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "PtGK8NlloMpQ",
+        "outputId": "bccd9a2f-0cd1-42cb-e567-54d61b360e31"
+      },
+      "outputs": [],
+      "source": [
+        "mail = input(\"enter ur email: \")\n",
+        "doc = nlp(mail)\n",
+        "mail = \" \".join([token.lemma_ for token in doc])\n",
+        "mail = vectorizer.transform([mail,])\n",
+        "if model.predict(mail) > 0.5:\n",
+        "  print(\"spam\")\n",
+        "else:\n",
+        "  print(\"not spam\")"
+      ]
+    }
+  ],
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
